@@ -7,6 +7,7 @@ const router = express();
 
 router.post('/',authMiddleware,upload.single('image'),async (req,res) => {
     try {
+        
         const { title, description, date, status } = req.body;
         const imageUrl = req.file ? req.file.path : "default-task.jpg";
 
@@ -23,7 +24,7 @@ router.post('/',authMiddleware,upload.single('image'),async (req,res) => {
         res.status(201).json({ message: "Task created successfully", task });
         
     } catch (error) {
-        return res.status(500).json({message : "server issues"})
+        return res.status(500).json({message : "server issues",error: error.message})
     }
 })
 router.get("/",authMiddleware,async (req,res) => {
@@ -31,50 +32,48 @@ router.get("/",authMiddleware,async (req,res) => {
         const task = await Task.find(req.params.id);
         res.json(task);
     } catch (error) {
-        return res.status(500).json({message : "server issues"});
+        return res.status(500).json({message : "server issues",error : error.message});
     }
 })
 
 router.get('/:id',authMiddleware,async (req,res) => {
     try {
-        console.log(req.user.id);
+        // console.log(req.user.id);
         const task = await Task.findOne({_id : req.params.id,user : req.user.id})
         if(!task) return res.status(400).json("task not found")
         res.json(task)
     } catch (error) {
-        res.json("server issues")
+        res.json({msg :"server issues",error : error.message})
     }
 })
 router.put('/:id',authMiddleware,async (req,res) => {
     try{
-        const task = await Tasl.findOneAndUpdate({_id :req.params.id , user : req.user.id},req.body,{new:true})
-
+        // console.log(req.body)
+        const task = await Task.findOneAndUpdate({_id :req.params.id , user : req.user.id},req.body,{new:true})
+        
         if(!task) return res.status(400).json("Task Not found")
 
         return res.json("task updated")
 
-    } catch(eeror){
-        return res.status(500).json({message : "server issues"})
+    } catch(error){
+        return res.status(500).json({message : "server issues",error : error.message})
     }
 })
 router.delete('/:id',authMiddleware,async (req,res) => {
     try{
-        const task = await Tasl.findOneAndDelete({_id :req.params.id , user : req.user.id})
+        const task = await Task.findOneAndDelete({_id :req.params.id , user : req.user.id})
 
         if(!task) return res.status(400).json("Task Not found")
 
         return res.json("task deleted successfully")
 
     } catch(error){
-        return res.status(500).json({message : "server issues"})
+        return res.status(500).json({message : "server issues",error:error.message})
     }
 })
 
 router.put('/:id/image',authMiddleware,upload.single('image'),async (req,res) => {
     try{
-        console.log('====================================');
-        console.log(req.params.id);
-        console.log('====================================');
         const task = await Task.findOne({_id : req.params.id , user: req.user.id});
         if(!task) return res.status(400).json("Task Not found");
 
@@ -83,7 +82,7 @@ router.put('/:id/image',authMiddleware,upload.single('image'),async (req,res) =>
 
         return res.status(200).json("image is updated")
     } catch(error){
-        return res.status(500).json({message : "server issues"})
+        return res.status(500).json({message : "server issues",error : error.message})
     }
 })
 

@@ -74,6 +74,7 @@ router.post('/logout',(req,res) => {
     res.clearCookie("token");
     res.json({message:"logged out"})
 })
+
 router.get('/profile', authMiddleware, async (req, res) => {
     try {
         const user = await User.findById(req.user.id).select('-password');
@@ -83,6 +84,57 @@ router.get('/profile', authMiddleware, async (req, res) => {
         res.status(500).json({ message: "Server error" });
     }
 });
+
+router.put('/profile/update', authMiddleware, async (req, res) => {
+  try {
+      const user = await User.findById(req.user.id);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const { firstName, lastName, username, email } = req.body;
+
+      if (email && email !== user.email) {
+          const emailExists = await User.findOne({ email });
+          if (emailExists) {
+              return res.status(400).json({ message: "Email is already in use" });
+          }
+      }
+      if (firstName) user.firstName = firstName;
+      if (lastName) user.lastName = lastName;
+      if (username) user.username = username;
+      if (email) user.email = email;
+
+      await user.save();
+
+      res.json({ message: "User details updated successfully", user });
+  } catch (error) {
+      res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.put('/profile/update-password', authMiddleware, async (req, res) => {
+  try {
+      const user = await User.findById(req.user.id);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const { oldPassword, newPassword } = req.body;
+
+      const isMatch = await user.matchPassword(oldPassword);
+      if (!isMatch) return res.status(400).json({ message: "Incorrect old password" });
+
+
+      if (newPassword.length < 8) {
+          return res.status(400).json({ message: "New password must be at least 8 characters long" });
+      }
+
+      user.password = newPassword;
+      await user.save();
+
+      res.json({ message: "Password updated successfully" });
+  } catch (error) {
+      res.status(500).json({ message: "Server error" });
+  }
+});
+
 
 
 router.put('/profile/image',authMiddleware,upload.single('profile'),async (req,res) => {
