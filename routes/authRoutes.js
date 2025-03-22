@@ -4,7 +4,7 @@ const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const Task = require('../models/Task');
 const authMiddleware = require('../middleware/authMiddleware');
-const { upload } = require('../config/cloudinary');
+const { upload,deleteImage } = require('../config/cloudinary');
 
 const router = express.Router();
 
@@ -143,12 +143,15 @@ router.put('/profile/image',authMiddleware,upload.single('profile'),async (req,r
 
         if (!user) return res.status(404).json({ message: "User not found" });
 
+        if (user.profile && !user.profile.includes('default.jpg')) {
+          await deleteImage(user.profile);
+      }
         user.profile = req.file.path; 
         await user.save();
 
         res.json({ message: "Profile picture updated successfully", user });
     } catch (error) {
-        res.status(500).json({ message: "Server error" });
+        res.status(500).json({ message: "Server error",error:error.message });
     }
 
 

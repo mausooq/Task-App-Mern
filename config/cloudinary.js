@@ -10,6 +10,17 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET
 })
 
+const deleteImage = async (imageUrl) => {
+    try {
+        console.log(imageUrl)
+        const publicId = imageUrl.split('/').pop().split('.')[0];  
+        await cloudinary.uploader.destroy(`task-images/${publicId}`);
+        console.log(`Deleted image: ${publicId}`);
+    } catch (error) {
+        console.error("Error deleting image from Cloudinary:", error);
+    }
+};
+
 
 const storage = new CloudinaryStorage({
     cloudinary,
@@ -22,4 +33,4 @@ const storage = new CloudinaryStorage({
 
 const upload = multer({ storage });
 
-module.exports = { cloudinary, upload };
+module.exports = { cloudinary, upload , deleteImage };

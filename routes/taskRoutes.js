@@ -1,7 +1,7 @@
 const express = require('express');
 const Task = require('../models/Task');
 const authMiddleware = require('../middleware/authMiddleware');
-const { upload } = require('../config/cloudinary');
+const { upload,deleteImage } = require('../config/cloudinary');
 const router = express();
 
 
@@ -65,6 +65,10 @@ router.delete('/:id',authMiddleware,async (req,res) => {
 
         if(!task) return res.status(400).json("Task Not found")
 
+        if (task.image && !task.image.includes('default-task.jpg')) {
+            await deleteImage(task.image);
+        }
+
         return res.json("task deleted successfully")
 
     } catch(error){
@@ -76,6 +80,10 @@ router.put('/:id/image',authMiddleware,upload.single('image'),async (req,res) =>
     try{
         const task = await Task.findOne({_id : req.params.id , user: req.user.id});
         if(!task) return res.status(400).json("Task Not found");
+
+        if (task.image && !task.image.includes('default-task.jpg')) {
+            await deleteImage(task.image);
+        }
 
         task.image = req.file.path;
         await task.save();
