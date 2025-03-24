@@ -3,8 +3,10 @@ const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const Task = require('../models/Task');
+const PasswordResetToken = require('../models/PasswordResetToken')
 const authMiddleware = require('../middleware/authMiddleware');
 const { upload,deleteImage } = require('../config/cloudinary');
+const sendMail = require('../config/sendEmail');
 
 const router = express.Router();
 
@@ -14,7 +16,6 @@ router.post('/signup',
     body('lastName').notEmpty().withMessage('Last Name is required'),
     body('username').notEmpty().withMessage('Username is required'),
     body('email').isEmail().withMessage('Valid email is required'),
-    body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -22,30 +23,83 @@ router.post('/signup',
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { firstName, lastName, username, email, password } = req.body;
+    const { firstName, lastName, username, email } = req.body;
 
     try {
-      let userExists = await User.findOne({ email });
+      let userExists = await User.findOne({$or: [{email},{username}]});
+
       if (userExists) {
-        return res.status(400).json({ message: 'User already exists' });
+        const message = userExists.email === email
+         ? "Email already exists"
+         : "Username is already taken! Please choose another."
+        return res.status(409).json({ message }); 
       }
 
    
-      const user = new User({ firstName, lastName, username, email, password });
+      const user = new User({ firstName, lastName, username, email });
       await user.save();
 
-      
-      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '15m' });
 
-      res.cookie('token', token, { httpOnly: true, secure: true });
+      const resetToken = new PasswordResetToken({
+        userId: user._id,
+        token:token,
+        expiresAt: new Date(Date.now() +15 * 60 *1000),
+      })
 
-      return res.status(201).json({ message: 'User created successfully', token });
+      await resetToken.save();
+
+      const setupLink = `${process.env.FRONTEND_URL}/setup-password?token=${token}`
+
+      sendMail(email,"Set Up Your Password",`Click here to setup your password : ${setupLink}`)
+      .then(() => console.log("Email sent successfully!"))
+           .catch((err) => console.error("Error:", err));
+
+      return res.status(201).json({ message: "Signup successful. Please check your email to set your password." });
     } catch (error) {
       console.error(error);
       return res.status(500).json({ message: 'Server Error' });
     }
   }
 );
+
+router.post('/set-password', async (req, res) => {
+
+  if (!req.body || Object.keys(req.body).length === 0) {
+      return res.status(400).json({ message: "Request body is missing!" });
+  }
+
+  const { token, password, confirmPassword } = req.body;
+
+  if (!token || !password || !confirmPassword) {
+      return res.status(400).json({ message: "Token, password, and confirm password are required" });
+  }
+
+  if (password !== confirmPassword) {
+      return res.status(400).json({ message: "Passwords do not match!" });
+  }
+
+  try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const resetToken = await PasswordResetToken.findOne({ userId: decoded.id, token });
+
+      if (!resetToken || resetToken.expiresAt < new Date()) {
+          return res.status(400).json({ message: "Invalid or expired token" });
+      }
+
+      const user = await User.findById(decoded.id);
+      user.password = password; 
+      await user.save();
+
+      await PasswordResetToken.deleteOne({ userId: decoded.id });
+
+      return res.status(200).json({ message: "Password set successfully. You can now log in." });
+  } catch (error) {
+      console.error("Error:", error);
+      return res.status(400).json({ message: "Invalid token" });
+  }
+});
+
 
 router.post('/login',async (req,res) => {
     const {email,password} = req.body;
