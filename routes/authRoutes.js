@@ -71,8 +71,13 @@ router.post('/login',async (req,res) => {
 })
 
 router.post('/logout',(req,res) => {
+  try{
     res.clearCookie("token");
     res.json({message:"logged out"})
+  } catch (error){
+    return res.status(500).json({message:"server error",error : error.message})
+  }
+    
 })
 
 router.get('/profile', authMiddleware, async (req, res) => {
