@@ -101,28 +101,40 @@ router.post('/set-password', async (req, res) => {
 });
 
 
-router.post('/login',async (req,res) => {
-    const {email,password} = req.body;
+router.post('/login', async (req, res) => {
+    const {email, password} = req.body;
     if (!email || !password) {
         return res.status(400).json({ message: "Email and password are required" });
     }
     try {
         const user = await User.findOne({email});
-        if(!user) return res.status(400).json({message:"email does not exist discord"})
+        if(!user) return res.status(400).json({message:"Email does not exist"});
             
         const isMatch = await user.matchPassword(password);
-        if(!isMatch) return res.status(400).json({ message : "invalid password"})
+        if(!isMatch) return res.status(400).json({ message: "Invalid password"});
 
-
-        const token = jwt.sign({id:user._id},process.env.JWT_SECRET,{expiresIn:'1h'});
-        res.cookie("token",token,{ httpOnly : true , secure : true })
+        const token = jwt.sign({id: user._id}, process.env.JWT_SECRET, {expiresIn: '1h'});
         
-        res.json({ message: 'Login successful', token })
+        res.cookie('token', token, {
+            httpOnly: true,
+            sameSite: 'lax',
+            maxAge: 3600000
+        });
+        
+        res.json({ 
+            message: 'Login successful',
+            user: {
+                id: user._id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email
+            }
+        });
     } catch (error) {
-        return res.status(500).json({message:"server error"})
+        console.error('Login error:', error);
+        return res.status(500).json({message: "Server error"});
     }
-    
-})
+});
 
 router.post('/logout',(req,res) => {
   try{
@@ -215,5 +227,66 @@ router.put('/profile/image',authMiddleware,upload.single('profile'),async (req,r
 
 
 })
+
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+    
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '15m' });
+    
+   
+    const resetToken = new PasswordResetToken({
+      userId: user._id,
+      token: token,
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000), 
+    });
+    await resetToken.save();
+
+    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+    await sendMail(
+      email,
+      "Password Reset Request",
+      `Click here to reset your password: ${resetLink}`
+    );
+    res.json({ message: "Password reset link sent to your email" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const resetToken = await PasswordResetToken.findOne({ 
+      userId: decoded.id,
+      token,
+      expiresAt: { $gt: new Date() }
+    });
+
+    if (!resetToken) {
+      return res.status(400).json({ message: "Invalid or expired reset token" });
+    }
+
+    const user = await User.findById(decoded.id);
+    user.password = newPassword;
+    await user.save();
+
+    await PasswordResetToken.deleteOne({ _id: resetToken._id });
+
+    res.json({ message: "Password has been reset successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ message: "Invalid token" });
+  }
+});
 
 module.exports = router;

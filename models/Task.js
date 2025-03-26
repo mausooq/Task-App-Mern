@@ -6,8 +6,8 @@ const TaskSchema  = new mongoose.Schema({
     title: { type: String , required : true},
     description: { type: String, required: true },
     date:{type: Date ,required:true},
-    image: { type: String, default: 'default-task.jpg' },
-    status: { type: String, enum: ['pending', 'inprogress', 'done'],required : true },
+    image: { type: String, default: 'taskImage.png' },
+    status: { type: String, enum: ['Pending', 'In-Progress', 'Done'],required : true },
 },{ timestamps: true });
 
 module.exports = mongoose.model('Task',TaskSchema)

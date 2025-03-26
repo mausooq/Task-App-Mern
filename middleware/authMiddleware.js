@@ -1,17 +1,31 @@
 const jwt = require('jsonwebtoken');
 
-const authMiddleware = (req,res,next) => {
-    const token = req.cookies.token;
-    
-    if(!token) return res.status(401).json({ message: "Access Denied" })
+const authMiddleware = (req, res, next) => {
     try {
-        const verified = jwt.verify(token,process.env.JWT_SECRET)
-        req.user = verified;
-        // console.log(req.user)
-        next();
+        const token = req.cookies.token;
+        
+        if (!token) {
+            return res.status(401).json({ 
+                message: "Authentication required. Please log in." 
+            });
+        }
+
+        try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            req.user = decoded;
+            next();
+        } catch (error) {
+            res.clearCookie('token');
+            return res.status(401).json({ 
+                message: "Invalid or expired token. Please log in again." 
+            });
+        }
     } catch (error) {
-        return res.status(400).json({message : "invalid token"})
+        console.error('Auth middleware error:', error);
+        return res.status(500).json({ 
+            message: "Authentication error" 
+        });
     }
-}
+};
 
 module.exports = authMiddleware;
