@@ -29,7 +29,7 @@ router.post('/',authMiddleware,upload.single('image'),async (req,res) => {
 })
 router.get("/",authMiddleware,async (req,res) => {
     try {
-        const task = await Task.find(req.params.id);
+        const task = await Task.find({user:req.user.id});
         res.json(task);
     } catch (error) {
         return res.status(500).json({message : "server issues",error : error.message});

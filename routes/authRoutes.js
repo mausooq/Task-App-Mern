@@ -83,8 +83,13 @@ router.post('/set-password', async (req, res) => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       const resetToken = await PasswordResetToken.findOne({ userId: decoded.id, token });
 
-      if (!resetToken || resetToken.expiresAt < new Date()) {
-          return res.status(400).json({ message: "Invalid or expired token" });
+      if (!resetToken) {
+        return res.status(400).json({ message: "Invalid or expired token" });
+      }
+
+      if (resetToken.expiresAt < new Date()) {
+        await PasswordResetToken.deleteOne({ userId: decoded.id });
+        return res.status(400).json({ message: "Token has expired. Please request a new password reset link." });
       }
 
       const user = await User.findById(decoded.id);
